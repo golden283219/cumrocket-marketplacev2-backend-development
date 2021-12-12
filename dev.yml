@@ -1,0 +1,55 @@
+version: "3.9"
+   
+services:
+  redis:
+    image: redis:buster
+    restart: on-failure
+    ports:
+      - "6379:6379"
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+  cumrocket_django:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    command: python /app/manage.py runserver 0.0.0.0:8000
+    env_file: .env
+    volumes:
+      - ./src:/app
+    ports:
+      - "8000:8000"
+  cumrocket_mastercontract_worker:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: unless-stopped
+#    command: bash -c "python manage.py master_contract"
+    command: bash -c "celery -A marketplacev2 worker --beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    env_file: .env
+    volumes:
+      - ./src:/app
+      - ./static:/static
+#  cumrocket_ipfs:
+#    image: ipfs/go-ipfs:fix-reindex-2021-07-06-0d2806-custom-timeout
+##    cap_add:
+##      - SYS_ADMIN
+##    security_opt:
+##      - apparmor:unconfined
+##    devices:
+##      - /dev/fuse:/dev/fuse
+#    env_file: .env
+#    volumes:
+#      - ./src:/app
+#      - ./ipfs/data:/data/ipfs
+#      - ./ipfs/export:/export
+#    ports:
+#      - "8080:8080"
+#      - "4001:4001"
+#      - "5001:5001"

@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  cumrocket_mastercontract_worker:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: unless-stopped
+    command: bash -c "celery -A marketplacev2 worker --beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: marketplacev2.settings_prod
+    volumes:
+      - ./src:/app
+      - ./static:/static
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-group: "marketplace-${ENV}"
+        awslogs-create-group: "true"
+        tag: "mastercontract_worker/{{.ID}}"

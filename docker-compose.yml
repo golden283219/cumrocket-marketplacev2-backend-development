@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:buster
+    restart: on-failure
+    ports:
+      - "6379:6379"
+  cumrocket_django:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: on-failure
+    command: bash -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput &&  gunicorn marketplacev2.wsgi:application --bind 0.0.0.0:8000"
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./src:/app
+      - ./static:/static
+    ports:
+      - "8000:8000"
+  cumrocket_mastercontract_worker:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: on-failure
+#    command: bash -c "python manage.py master_contract"
+    command: bash -c "celery -A marketplacev2 worker --beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    env_file: .env
+    volumes:
+      - ./src:/app
+      - ./static:/static
+  cumrocket_nginx:
+    image: nginx:1.15-alpine
+    restart: unless-stopped
+    volumes:
+      - ./data/nginx/conf_ssl.d:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - ./static:/static
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - cumrocket_django
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - ./data/certbot/logs:/var/log/letsencrypt/
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 5d & wait $${!}; done;'"

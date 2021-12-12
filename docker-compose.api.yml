@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  cumrocket_marketplace_api:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: on-failure
+    command: bash -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput &&  gunicorn marketplacev2.wsgi:application --workers 2 --timeout 120 --bind 0.0.0.0:8000"
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: marketplacev2.settings_prod
+    volumes:
+      - ./src:/app
+      - ./static:/static
+    ports:
+      - "8000:8000"
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-group: "marketplace-${ENV}"
+        awslogs-create-group: "true"
+        tag: "api/{{.ID}}"
+  cumrocket_marketplace_nginx:
+    image: nginx:1.15-alpine
+    restart: unless-stopped
+    volumes:
+      - ./data/nginx/conf.d:/etc/nginx/conf.d
+      - ./static:/static
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    ports:
+      - "80:80"
+    depends_on:
+      - cumrocket_marketplace_api
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-group: "marketplace-${ENV}"
+        awslogs-create-group: "true"
+        tag: "nginx/{{.ID}}"

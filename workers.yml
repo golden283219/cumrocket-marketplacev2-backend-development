@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  cumrocket_mastercontract_worker:
+    build:
+      context: .
+      dockerfile: ./compose/django/Dockerfile
+    restart: on-failure
+    command: bash -c "python manage.py master_contract"
+    env_file: .env
+    volumes:
+      - ./src:/app
+      - ./static:/static
